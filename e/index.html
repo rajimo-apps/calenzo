@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Calenzo · Evento compartido</title>
+<meta name="description" content="Un evento compartido con Calenzo. Ábrelo en la app y añádelo a tu calendario.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Doodle+Shadow&family=Lexend:wght@400;600&display=swap">
+<style>
+  :root { --bg: #f6f5fb; --card: #ffffff; --fg: #1d1a2b; --muted: #615c77; --accent: #6741d9; --line: #e4e1ef; --on-accent: #ffffff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14121c; --card: #1e1b2a; --fg: #ece9f7; --muted: #a7a1bf; --accent: #a48cff; --line: #2c2840; --on-accent: #14121c; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 "Lexend", system-ui, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 32px 16px 56px; }
+  .brand { font-family: "Rubik Doodle Shadow", "Lexend", sans-serif; font-size: 48px; color: var(--accent); text-align: center; line-height: 1.1; }
+  .tag { color: var(--muted); text-align: center; margin-top: 4px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; margin-top: 24px; }
+  h1 { font-size: 22px; margin: 0 0 10px; overflow-wrap: anywhere; }
+  .row { margin: 6px 0; overflow-wrap: anywhere; }
+  .notes { white-space: pre-wrap; color: var(--muted); margin-top: 12px; overflow-wrap: anywhere; }
+  .buttons { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+  .btn { display: block; text-align: center; text-decoration: none; font-weight: 600; padding: 14px 18px; border-radius: 26px; }
+  .primary { background: var(--accent); color: var(--on-accent); }
+  .secondary { border: 2px solid var(--accent); color: var(--accent); }
+  .muted { color: var(--muted); font-size: 14px; text-align: center; margin-top: 22px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">Calenzo</div>
+  <div class="tag" id="tag">Del cartel a tu calendario</div>
+
+  <div class="card" id="event">
+    <h1 id="title"></h1>
+    <div class="row" id="when"></div>
+    <div class="row" id="where"></div>
+    <div class="row" id="cost"></div>
+    <div class="notes" id="notes"></div>
+  </div>
+  <div class="card hidden" id="broken"></div>
+
+  <div class="buttons">
+    <a class="btn primary" id="open" href="#">Abrir en Calenzo</a>
+    <a class="btn secondary" id="play" href="https://play.google.com/store/apps/details?id=net.raul.calenzo">Descargar Calenzo en Google Play</a>
+  </div>
+  <p class="muted" id="hint"></p>
+</main>
+<script>
+// A Calenzo event link: the event is in the part after '#', so it never
+// reaches any server. Same format as src/eventLink.ts in the app.
+(function () {
+  var es = !/^en|^fr|^it|^de|^pt|^ar/i.test(navigator.language || 'es') || /^es/i.test(navigator.language || '');
+  var T = es ? {
+    tag: 'Del cartel a tu calendario',
+    open: 'Abrir en Calenzo', play: 'Descargar Calenzo en Google Play',
+    hint: 'Con Calenzo instalada, el evento se abre listo para añadirlo a tu calendario. Si no la tienes, descárgala gratis y vuelve a abrir el enlace.',
+    broken: 'Este enlace no contiene un evento válido. Pide a quien te lo envió que lo comparta de nuevo desde Calenzo.',
+    allDay: 'Todo el día', from: 'del', to: 'al', noDate: 'Sin fecha', title: 'Evento compartido'
+  } : {
+    tag: 'From flyer to calendar',
+    open: 'Open in Calenzo', play: 'Get Calenzo on Google Play',
+    hint: 'With Calenzo installed, the event opens ready to add to your calendar. If you don’t have it, get it free and open the link again.',
+    broken: 'This link does not contain a valid event. Ask whoever sent it to share it again from Calenzo.',
+    allDay: 'All day', from: 'from', to: 'to', noDate: 'No date', title: 'Shared event'
+  };
+  if (!es) document.documentElement.lang = 'en';
+  document.getElementById('tag').textContent = T.tag;
+  document.getElementById('open').textContent = T.open;
+  document.getElementById('play').textContent = T.play;
+  document.getElementById('hint').textContent = T.hint;
+
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  function decode(text) {
+    var clean = text.replace(/[^A-Za-z0-9\-_]/g, ''), bytes = [];
+    for (var i = 0; i < clean.length; i += 4) {
+      var chunk = clean.slice(i, i + 4), n = 0;
+      for (var j = 0; j < chunk.length; j++) n |= B64.indexOf(chunk[j]) << (18 - 6 * j);
+      bytes.push((n >> 16) & 255);
+      if (chunk.length > 2) bytes.push((n >> 8) & 255);
+      if (chunk.length > 3) bytes.push(n & 255);
+    }
+    return decodeURIComponent(bytes.map(function (b) { return '%' + ('0' + b.toString(16)).slice(-2); }).join(''));
+  }
+  function day(iso) {
+    try {
+      var p = iso.split('-');
+      return new Date(+p[0], +p[1] - 1, +p[2], 12).toLocaleDateString(es ? 'es-ES' : 'en-GB',
+        { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    } catch (e) { return iso; }
+  }
+  function set(id, text) {
+    var el = document.getElementById(id);
+    if (text) el.textContent = text; else el.classList.add('hidden');
+  }
+
+  var data = (location.hash || '').slice(1), ev = null;
+  try { ev = JSON.parse(decode(data)); } catch (e) { ev = null; }
+  if (!ev || ev.v !== 1 || !ev.t) {
+    document.getElementById('event').classList.add('hidden');
+    var broken = document.getElementById('broken');
+    broken.textContent = T.broken;
+    broken.classList.remove('hidden');
+    document.getElementById('open').classList.add('hidden');
+    return;
+  }
+  document.title = 'Calenzo · ' + ev.t;
+  set('title', (ev.i ? ev.i + ' ' : '') + ev.t);
+  var when = '';
+  if (ev.k === 'nodate' && !ev.s) when = T.noDate;
+  else if (ev.e && ev.e !== ev.s) when = T.from + ' ' + day(ev.s) + ' ' + T.to + ' ' + day(ev.e);
+  else when = day(ev.s);
+  if (ev.k !== 'nodate') when += ' · ' + (ev.st ? ev.st + (ev.et ? ' – ' + ev.et : '') : T.allDay);
+  set('when', '🗓️ ' + when);
+  set('where', ev.l && '📍 ' + ev.l);
+  set('cost', ev.c && '💶 ' + ev.c);
+  set('notes', ev.n);
+
+  // Android: open the app, or Google Play if it is not installed.
+  var play = 'https://play.google.com/store/apps/details?id=net.raul.calenzo';
+  var android = /android/i.test(navigator.userAgent);
+  document.getElementById('open').href = android
+    ? 'intent://e?d=' + encodeURIComponent(data) + '#Intent;scheme=calenzo;package=net.raul.calenzo;S.browser_fallback_url=' + encodeURIComponent(play) + ';end'
+    : 'calenzo://e?d=' + encodeURIComponent(data);
+})();
+</script>
+</body>
+</html>
